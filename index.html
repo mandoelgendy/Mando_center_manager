@@ -1,1 +1,118 @@
-<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mando Center</title><style>body{font-family:sans-serif;background:#0f172a;color:#fff;padding:12px}h1{text-align:center;color:#38bdf8}.card{background:#1e293b;padding:14px;border-radius:14px;margin:12px 0}input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:10px;border:none}button{background:#38bdf8;font-weight:bold}table{width:100%;background:#1e293b;border-radius:10px}th,td{padding:10px;border-bottom:1px solid #334155;text-align:center}</style></head><body><h1>🧠 Mando Center - بدون نت</h1><div class="card"><input id="name" placeholder="اسم الطالب"><input id="phone" placeholder="رقم ولي الامر"><select id="group"><option>A</option><option>B</option><option>C</option></select><button onclick="add()">حفظ ✅</button></div><div class="card"><h3>الطلاب (<span id="count">0</span>)</h3><table id="list"></table></div><script>let s=JSON.parse(localStorage.getItem('mando')||'[]');function render(){document.getElementById('count').innerText=s.length;let h='<tr><th>الاسم</th><th>المجموعة</th><th>X</th></tr>';s.forEach((x,i)=>{h+=`<tr><td>${x.name}</td><td>${x.group}</td><td><button onclick="del(${i})">حذف</button></td></tr>`});document.getElementById('list').innerHTML=h;localStorage.setItem('mando',JSON.stringify(s))}function add(){let n=document.getElementById('name').value;if(!n)return alert('اكتب الاسم');s.push({name:n,phone:document.getElementById('phone').value,group:document.getElementById('group').value});render();document.getElementById('name').value='';}function del(i){s.splice(i,1);render()}render();</script></body></html>
+<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mando Center</title><style>
+body{font-family:sans-serif;background:#0f172a;color:#fff;padding:12px;max-width:600px;margin:auto}
+h1{text-align:center;color:#38bdf8;font-size:22px;margin:6px}
+.card{background:#1e293b;padding:14px;border-radius:14px;margin:12px 0}
+input,select,button{width:100%;padding:12px;margin:4px 0;border-radius:10px;border:none;box-sizing:border-box}
+button{background:#38bdf8;font-weight:bold;cursor:pointer}
+button.pay{background:#22c55e;color:#fff;padding:8px;font-size:13px}
+button.unpay{background:#f59e0b;color:#fff;padding:8px;font-size:13px}
+button.del{background:#ef4444;color:#fff;padding:6px 8px;width:auto}
+button.group-btn{background:#334155;color:#fff;padding:10px 14px;margin:3px;width:auto;display:inline-block;border-radius:20px}
+button.group-btn.active{background:#38bdf8;color:#000;transform:scale(1.05)}
+button.add-group{background:#8b5cf6;color:#fff}
+table{width:100%;background:#1e293b;border-radius:10px;border-collapse:collapse;overflow:hidden}
+th,td{padding:8px;border-bottom:1px solid #334155;text-align:center;font-size:13px}
+.stats{display:flex;gap:8px;margin:10px 0}
+.stat{flex:1;background:#1e293b;padding:10px;border-radius:12px;text-align:center}
+.stat b{font-size:19px;display:block}
+.groups-bar{overflow-x:auto;white-space:nowrap;padding:8px 0}
+.small{font-size:11px;color:#94a3b8}
+</style></head><body>
+<h1>🧠 Mando Center</h1>
+<div class="card">
+<h3 style="margin:0 0 8px">إضافة مجموعة جديدة</h3>
+<div style="display:flex;gap:6px">
+<input id="newGroupName" placeholder="اسم المجموعة - مثلا: تانية ثانوي السبت 3م" style="flex:1">
+<button class="add-group" onclick="addGroup()" style="width:90px">إضافة +</button>
+</div>
+<div class="groups-bar" id="groupsBar"></div>
+<div id="currentGroupInfo" style="margin-top:8px"></div>
+</div>
+<div class="stats">
+<div class="stat"><b id="count">0</b><span class="small">طلاب المجموعة</span></div>
+<div class="stat"><b id="paidCount" style="color:#22c55e">0</b><span class="small">دفع</span></div>
+<div class="stat"><b id="unpaidCount" style="color:#ef4444">0</b><span class="small">باقي</span></div>
+</div>
+<div class="card">
+<input id="name" placeholder="اسم الطالب">
+<input id="phone" placeholder="رقم ولي الامر">
+<input id="amount" type="number" placeholder="المبلغ - 200">
+<button onclick="addStudent()">حفظ الطالب في المجموعة دي ✅</button>
+</div>
+<div class="card">
+<h3 style="margin:0 0 10px" id="listTitle">الطلاب</h3>
+<table id="list"></table>
+</div>
+<script>
+let groups = JSON.parse(localStorage.getItem('mando_groups')||'["A","B","C"]');
+let s = JSON.parse(localStorage.getItem('mando')||'[]');
+let currentGroup = localStorage.getItem('mando_current_group') || groups[0] || 'A';
+s = s.map(x=>({paid:false, amount:x.amount||200, paidDate:null, group: x.group||'A',...x}));
+groups = [...new Set(groups)];
+function save(){
+ localStorage.setItem('mando_groups', JSON.stringify(groups));
+ localStorage.setItem('mando', JSON.stringify(s));
+ localStorage.setItem('mando_current_group', currentGroup);
+}
+function renderGroups(){
+ let h='';
+ groups.forEach(g=>{
+   h+=`<button class="group-btn ${g===currentGroup?'active':''}" onclick="selectGroup('${g.replace(/'/g,"\\'")}')">${g}</button>`;
+ });
+ document.getElementById('groupsBar').innerHTML = h || '<small>مفيش مجموعات - ضيف واحدة</small>';
+ document.getElementById('currentGroupInfo').innerHTML = groups.length? `المجموعة الحالية: <b style="color:#38bdf8">${currentGroup}</b> <button class="del" onclick="deleteGroup()" style="margin-right:8px">حذف المجموعة</button>` : '';
+ document.getElementById('listTitle').innerText = `طلاب ${currentGroup}`;
+}
+function selectGroup(g){ currentGroup = g; save(); render(); }
+function addGroup(){
+ let n = document.getElementById('newGroupName').value.trim();
+ if(!n) return alert('اكتب اسم المجموعة');
+ if(groups.includes(n)) return alert('المجموعة دي موجودة');
+ groups.push(n); currentGroup = n;
+ document.getElementById('newGroupName').value='';
+ save(); render();
+}
+function deleteGroup(){
+ if(!confirm('تحذف مجموعة '+currentGroup+' وكل طلابها؟')) return;
+ s = s.filter(x=>x.group!==currentGroup);
+ groups = groups.filter(g=>g!==currentGroup);
+ currentGroup = groups[0] || '';
+ if(groups.length===0){ groups=['A']; currentGroup='A'; }
+ save(); render();
+}
+function render(){
+ renderGroups();
+ let filtered = s.filter(x=>x.group===currentGroup);
+ document.getElementById('count').innerText=filtered.length;
+ let paid=filtered.filter(x=>x.paid).length;
+ document.getElementById('paidCount').innerText=paid;
+ document.getElementById('unpaidCount').innerText=filtered.length-paid;
+ let h='<tr><th>الاسم</th><th>الدفع</th><th>X</th></tr>';
+ filtered.forEach((x)=>{
+   let realIndex = s.indexOf(x);
+   let btn = x.paid
+  ? `<button class="pay" onclick="toggle(${realIndex})">تم ✅<br><small>${x.paidDate||''}</small></button>`
+   : `<button class="unpay" onclick="toggle(${realIndex})">لم يدفع<br><small>${x.amount}ج</small></button>`;
+   h+=`<tr><td>${x.name}<br><small class="small">${x.phone||''}</small></td><td>${btn}</td><td><button class="del" onclick="del(${realIndex})">حذف</button></td></tr>`;
+ });
+ document.getElementById('list').innerHTML=h || '<tr><td colspan=3 style="padding:20px">مفيش طلاب في المجموعة دي لسه</td></tr>';
+ save();
+}
+function addStudent(){
+ let n=document.getElementById('name').value.trim();
+ if(!n) return alert('اكتب اسم الطالب');
+ if(!currentGroup) return alert('اختار مجموعة الاول');
+ let amt=document.getElementById('amount').value||200;
+ s.push({name:n,phone:document.getElementById('phone').value,group:currentGroup,amount:amt,paid:false,paidDate:null});
+ document.getElementById('name').value=''; document.getElementById('phone').value=''; document.getElementById('amount').value='';
+ render();
+}
+function toggle(i){
+ if(!s[i].paid){ s[i].paid=true; s[i].paidDate=new Date().toLocaleDateString('ar-EG'); }
+ else{ s[i].paid=false; s[i].paidDate=null; }
+ render();
+}
+function del(i){ if(confirm('تحذف '+s[i].name+' ؟')){ s.splice(i,1); render(); } }
+render();
+</script>
+</body></html>
