@@ -1,7 +1,7 @@
 <!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mando Center</title>
 <style>
-body{font-family:sans-serif;background:#0f172a;color:#fff;padding:12px;max-width:650px;margin:auto}
-h1{text-align:center;color:#38bdf8}
+body{font-family:sans-serif;background:#0f172a;color:#fff;padding:12px;max-width:650px;margin:auto;overflow-x:hidden}
+h1{text-align:center;color:#38bdf8;margin-top:50px}
 .card{background:#1e293b;padding:14px;border-radius:14px;margin:12px 0}
 input,button{width:100%;padding:12px;margin:4px 0;border-radius:10px;border:none;box-sizing:border-box}
 button{background:#38bdf8;font-weight:bold;cursor:pointer}
@@ -16,9 +16,26 @@ th,td{padding:8px;border-bottom:1px solid #334155;text-align:center;font-size:13
 .stats{display:flex;gap:8px}.stat{flex:1;background:#1e293b;padding:10px;border-radius:12px;text-align:center}.stat b{display:block;font-size:18px}
 .groups-bar{overflow-x:auto;white-space:nowrap;padding:8px 0}
 .due{background:#f59e0b20;border:1px solid #f59e0b;color:#fbbf24;padding:8px;border-radius:10px;text-align:center;font-size:13px;margin-bottom:8px}
+/* القائمة الجانبية */
+.topbar{position:fixed;top:0;left:0;right:0;background:#0f172a;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;z-index:1000;border-bottom:1px solid #1e293b}
+.menu-btn{width:auto;background:#1e293b;color:#fff;font-size:20px;padding:8px 14px}
+.sidebar{position:fixed;top:0;right:-100%;width:88%;max-width:380px;height:100%;background:#111a2f;z-index:2000;transition:0.3s;padding:14px;overflow-y:auto;box-shadow:-5px 0 20px #000}
+.sidebar.open{right:0}
+.overlay{position:fixed;inset:0;background:#0008;z-index:1500;display:none}
+.overlay.show{display:block}
+.monthTag{display:inline-block;background:#38bdf820;border:1px solid #38bdf8;color:#38bdf8;padding:3px 8px;border-radius:20px;font-size:11px;margin:2px}
 </style></head><body>
-<h1>🧠 Mando Center</h1>
 
+<div class="topbar"><button class="menu-btn" onclick="openMenu()">☰ القائمة</button><span style="font-weight:bold;color:#38bdf8">Mando Center</span></div>
+<div class="overlay" id="overlay" onclick="closeMenu()"></div>
+<div class="sidebar" id="sidebar">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:#38bdf8">📊 كشف الحساب</h2><button onclick="closeMenu()" style="width:auto;background:#ef4444;color:#fff;padding:6px 12px">X</button></div>
+  <div class="card" id="sideTotals"></div>
+  <div class="card"><h3 style="margin:0 0 8px">💰 المجاميع بالشهر</h3><div id="sideByMonth"></div></div>
+  <div class="card"><h3 style="margin:0 0 8px">👨‍🎓 الطلاب والشهور المدفوعة</h3><div id="sideStudents"></div></div>
+</div>
+
+<h1>🧠 Mando Center</h1>
 <div id="dueBox" class="due"></div>
 
 <div class="card">
@@ -46,39 +63,26 @@ let groups = JSON.parse(localStorage.getItem('mando_groups')||'["A","B","C"]');
 let s = JSON.parse(localStorage.getItem('mando')||'[]');
 let currentGroup = localStorage.getItem('mando_current_group') || groups[0] || 'A';
 let lastRenew = localStorage.getItem('mando_last_renew') || '';
-
-// ترقية البيانات القديمة + اضافة تاريخ
 s = s.map(x=>({
   paid:false,amount:200,paidDate:null,history:[],lastPaidMonth:'',group:'A',...x,
   history: x.history|| (x.paidDate? [{date:x.paidDate, amount:x.amount, month:x.lastPaidMonth||'قديم'}] : [])
 }));
 groups=[...new Set(groups)];
-
 function save(){localStorage.setItem('mando_groups',JSON.stringify(groups));localStorage.setItem('mando',JSON.stringify(s));localStorage.setItem('mando_current_group',currentGroup);if(lastRenew)localStorage.setItem('mando_last_renew',lastRenew);}
+function openMenu(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlay').classList.add('show');renderSide()}
+function closeMenu(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show');}
 
-// === التجديد كل يوم 20 ===
 function checkRenewal(){
   let now = new Date();
   let today = now.getDate();
   let monthKey = now.getFullYear()+'-'+(now.getMonth()+1);
-
-  // نحسب ميعاد التجديد الجاي
-  let nextDue = new Date(now.getFullYear(), now.getMonth(), 20);
-  if(today >= 20) nextDue = new Date(now.getFullYear(), now.getMonth()+1, 20);
-  document.getElementById('dueBox').innerHTML = `⏰ التجديد الجاي: يوم <b>20</b> - ${nextDue.toLocaleDateString('ar-EG')} - اللي مدفعش هيرجع "لم يدفع" أوتوماتيك`;
-
-  // لو النهاردة يوم 20 أو بعده ولسه مجددناش الشهر ده
-  if(today >= 20 && lastRenew!== monthKey){
-    // نجدد كل الطلاب اللي مدفعوش الشهر ده
-    s.forEach(st=>{
-      if(st.lastPaidMonth!== monthKey){
-        st.paid = false;
-        st.paidDate = null;
-      }
-    });
-    lastRenew = monthKey;
-    save();
-    alert('🔄 تم تجديد شهر جديد! يوم 20 جه، كل اللي مدفعش رجع "لم يدفع"');
+  let nextDue = new Date(now.getFullYear(), now.getMonth(), 30);
+  if(today >= 30) nextDue = new Date(now.getFullYear(), now.getMonth()+1, 30);
+  document.getElementById('dueBox').innerHTML = `⏰ التجديد الجاي: يوم <b>30</b> - ${nextDue.toLocaleDateString('ar-EG')} - اللي مدفعش هيرجع "لم يدفع" أوتوماتيك`;
+  if(today >= 30 && lastRenew!== monthKey){
+    s.forEach(st=>{ if(st.lastPaidMonth!== monthKey){ st.paid = false; st.paidDate = null; } });
+    lastRenew = monthKey; save();
+    alert('🔄 تم تجديد شهر جديد! يوم 30 جه، كل اللي مدفعش رجع "لم يدفع"');
   }
 }
 
@@ -91,31 +95,41 @@ function addStudent(){let n=document.getElementById('name').value.trim();if(!n)r
 function toggle(i){
   let now = new Date();
   let monthKey = now.getFullYear()+'-'+(now.getMonth()+1);
+  let monthName = now.toLocaleDateString('ar-EG',{month:'long',year:'numeric'});
   let fullDate = now.toLocaleString('ar-EG');
   if(!s[i].paid){
-    s[i].paid=true;
-    s[i].paidDate=fullDate;
-    s[i].lastPaidMonth=monthKey;
+    s[i].paid=true; s[i].paidDate=fullDate; s[i].lastPaidMonth=monthKey;
     s[i].history = s[i].history||[];
-    s[i].history.unshift({date:fullDate, amount:s[i].amount, month:monthKey});
-  }else{
-    s[i].paid=false;
-    s[i].paidDate=null;
-    s[i].lastPaidMonth='';
-  }
+    s[i].history.unshift({date:fullDate, amount:s[i].amount, month:monthKey, monthName:monthName});
+  }else{ s[i].paid=false; s[i].paidDate=null; s[i].lastPaidMonth=''; }
   render();
 }
 function del(i){if(confirm('تحذف '+s[i].name+'؟')){s.splice(i,1);render();}}
 function showHist(i){
-  let st=s[i];
-  document.getElementById('histName').innerText=st.name;
-  let html='';
-  if(!st.history||!st.history.length) html='<small>مفيش دفعات قديمة</small>';
-  else st.history.forEach(h=>{html+=`<div style="border-bottom:1px solid #334155;padding:6px 0">✅ ${h.date} - ${h.amount}ج - شهر ${h.month}</div>`;});
-  document.getElementById('histList').innerHTML=html;
-  document.getElementById('historyCard').style.display='block';
-  window.scrollTo(0, document.getElementById('historyCard').offsetTop);
+  let st=s[i]; document.getElementById('histName').innerText=st.name;
+  let html=''; if(!st.history||!st.history.length) html='<small>مفيش دفعات قديمة</small>';
+  else st.history.forEach(h=>{html+=`<div style="border-bottom:1px solid #334155;padding:6px 0">✅ ${h.date} - ${h.amount}ج - شهر ${h.monthName||h.month}</div>`;});
+  document.getElementById('histList').innerHTML=html; document.getElementById('historyCard').style.display='block';
 }
 function closeHist(){document.getElementById('historyCard').style.display='none';}
+
+// === القائمة الجانبية ===
+function renderSide(){
+  let total = 0; s.forEach(st=>{ (st.history||[]).forEach(h=> total+= parseInt(h.amount)||0); });
+  let byMonth = {};
+  s.forEach(st=>{ (st.history||[]).forEach(h=>{ let k=h.monthName||h.month; if(!byMonth[k]) byMonth[k]={total:0,count:0}; byMonth[k].total+= parseInt(h.amount)||0; byMonth[k].count++; }); });
+
+  document.getElementById('sideTotals').innerHTML = `<b style="font-size:22px;color:#22c55e">${total} جنيه</b><br><small>إجمالي كل اللي اتلم</small><br><br><b>${s.length}</b> طالب في كل المجموعات`;
+
+  let mHtml=''; Object.keys(byMonth).forEach(k=>{ mHtml+= `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b"><span>${k}</span><span><b style="color:#22c55e">${byMonth[k].total}ج</b> <small>(${byMonth[k].count})</small></span></div>`; });
+  document.getElementById('sideByMonth').innerHTML = mHtml || '<small>لسه مفيش دفعات</small>';
+
+  let sHtml=''; s.forEach(st=>{
+    let months = (st.history||[]).map(h=> `<span class="monthTag">${h.monthName||h.month}</span>`).join('') || '<small style="color:#94a3b8">لم يدفع ولا شهر</small>';
+    sHtml+= `<div style="padding:10px 0;border-bottom:1px solid #1e293b"><b>${st.name}</b> <small style="color:#94a3b8">- ${st.group}</small><br>${months}</div>`;
+  });
+  document.getElementById('sideStudents').innerHTML = sHtml || '<small>مفيش طلاب</small>';
+}
+
 render();
 </script></body></html>
